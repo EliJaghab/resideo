@@ -4,7 +4,6 @@
 
 # Logs
 *.log
-thermostat_log.txt
 
 # Python
 __pycache__/
