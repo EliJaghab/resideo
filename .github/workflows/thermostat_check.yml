@@ -2,8 +2,8 @@ name: Thermostat Check
 
 on:
   schedule:
-    - cron: '30,50 1,2,3,4,5,6,7,8,9,10,11 * * *'  # 9:30pm-6:50am ET (converted to UTC)
-    - cron: '10 2,3,4,5,6,7,8,9,10,11,12 * * *'  # :10 minutes past hours
+    - cron: '45 1,2,3,4,5,6,7,8,9,10,11 * * *'  # 9:45pm-6:45am ET every 25 min (converted to UTC)
+    - cron: '10,35 2,3,4,5,6,7,8,9,10,11,12 * * *'  # :10 and :35 minutes past hours
   workflow_dispatch:
 
 jobs:
@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-      - run: pip install requests python-dotenv pytz
+      - run: pip install -r requirements.txt
       - name: Run thermostat check
         env:
           HONEYWELL_ACCESS_TOKEN: ${{ secrets.HONEYWELL_ACCESS_TOKEN }}

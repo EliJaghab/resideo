@@ -10,6 +10,15 @@ API_KEY = os.getenv('RESIDEO_CONSUMER_KEY')
 ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')
 LOCATION_ID = '146016'
 DEVICE_ID = 'LCC-00D02DB89E33'
+TARGET_TEMP = 68
+
+def log_entry(message):
+    et = pytz.timezone('US/Eastern')
+    timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
+    entry = f"{timestamp}: {message}"
+    with open('thermostat_log.txt', 'a') as f:
+        f.write(entry + '\n')
+    print(entry)
 
 headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
 
@@ -20,28 +29,22 @@ status_response = requests.get(
 )
 
 if not status_response.ok:
-    et = pytz.timezone('US/Eastern')
-    now = datetime.now(et)
-    log_entry = f"{now.strftime('%m/%d/%y %H:%M:%S ET')}: ERROR - Cannot get thermostat status: {status_response.status_code}"
-    with open('thermostat_log.txt', 'a') as f:
-        f.write(log_entry + '\n')
+    log_entry(f"ERROR - Cannot get thermostat status: {status_response.status_code}")
     exit(1)
 
 status = status_response.json()
 temp = status['indoorTemperature']
 mode = status['changeableValues']['mode']
-setpoint = status['changeableValues']['coolSetpoint']
+cool_setpoint = status['changeableValues']['coolSetpoint']
 heat_setpoint = status['changeableValues']['heatSetpoint']
 
-et = pytz.timezone('US/Eastern')
-now = datetime.now(et)
-log = f"{now.strftime('%m/%d/%y %H:%M:%S ET')}: {temp}°F, {mode}, Set:{setpoint}°F"
+message = f"{temp}°F, {mode}, Set:{cool_setpoint}°F"
 
 # Set to 68°F AC if needed
-if mode != 'Cool' or setpoint != 68:
+if mode != 'Cool' or cool_setpoint != TARGET_TEMP:
     payload = {
         'mode': 'Cool',
-        'coolSetpoint': 68,
+        'coolSetpoint': TARGET_TEMP,
         'heatSetpoint': heat_setpoint,
         'thermostatSetpointStatus': 'TemporaryHold'
     }
@@ -53,13 +56,10 @@ if mode != 'Cool' or setpoint != 68:
     )
 
     if result.ok:
-        log += " → SET 68°F AC"
+        message += f" → SET {TARGET_TEMP}°F AC"
     else:
-        log += f" → FAILED: {result.status_code} - {result.text[:100]}"
+        message += f" → FAILED: {result.status_code} - {result.text[:100]}"
 else:
-    log += " → OK"
+    message += " → OK"
 
-with open('thermostat_log.txt', 'a') as f:
-    f.write(log + '\n')
-
-print(log)
+log_entry(message)
