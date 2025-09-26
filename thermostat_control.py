@@ -1,6 +1,6 @@
 import requests
 import os
-import base64
+import json
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 load_dotenv('.env.dev')
 
 API_KEY = os.getenv('RESIDEO_CONSUMER_KEY')
-API_SECRET = os.getenv('RESIDEO_CONSUMER_SECRET', '7bdyEdjGAB5L9vzd')
 ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')
 LOCATION_ID = '146016'
 DEVICE_ID = 'LCC-00D02DB89E33'
@@ -23,8 +22,6 @@ def log_entry(message):
     print(entry)
 
 def get_working_token():
-    """Get a working token, trying multiple stored tokens"""
-    import json
 
     # Try current env token first
     test_response = requests.get(
@@ -57,9 +54,8 @@ def get_working_token():
     except FileNotFoundError:
         pass
 
-    # No working tokens
-    log_entry("❌ ALL TOKENS EXPIRED - Generate new ones!")
-    log_entry("Run: python token_manager.py add AUTH_CODE")
+    log_entry("ALL TOKENS EXPIRED - Generate new ones!")
+    log_entry("Run: python automated_token_refresh.py")
     log_entry(f"Auth URL: https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={API_KEY}&redirect_uri=http://localhost:8080/callback")
     exit(1)
 

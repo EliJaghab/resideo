@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Standalone automated token refresh using headless browser
-This script handles the complete OAuth flow automatically
-"""
 import os
 import sys
 import time
@@ -13,7 +9,6 @@ from datetime import datetime
 import pytz
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
@@ -25,7 +20,6 @@ from dotenv import load_dotenv
 load_dotenv('.env.dev')
 
 def log_entry(message):
-    """Log with timestamp to thermostat_log.txt"""
     et = pytz.timezone('US/Eastern')
     timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
     entry = f"{timestamp}: {message}"
@@ -34,13 +28,11 @@ def log_entry(message):
     print(entry)
 
 def generate_totp_code(secret):
-    """Generate TOTP code for 2FA"""
     import pyotp
     totp = pyotp.TOTP(secret)
     return totp.now()
 
 def test_token(token, api_key):
-    """Test if a token is valid"""
     response = requests.get(
         f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={api_key}&locationId=146016',
         headers={'Authorization': f'Bearer {token}'}
@@ -48,7 +40,6 @@ def test_token(token, api_key):
     return response.ok
 
 def perform_oauth_login():
-    """Perform automated OAuth login with headless browser"""
 
     # Get credentials
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
@@ -57,7 +48,7 @@ def perform_oauth_login():
     totp_secret = os.getenv('HONEYWELL_TOTP_SECRET')
 
     if not all([api_key, username, password]):
-        log_entry("❌ Missing required credentials (username/password)")
+        log_entry("Missing required credentials (username/password)")
         return None
 
     # Setup headless Chrome
@@ -81,11 +72,11 @@ def perform_oauth_login():
 
         # Navigate to OAuth URL
         auth_url = f"https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={api_key}&redirect_uri=http://localhost:8080/callback"
-        log_entry("🌐 Starting automated OAuth flow...")
+        log_entry("Starting automated OAuth flow...")
         driver.get(auth_url)
 
         # Enter username and password
-        log_entry("👤 Entering credentials...")
+        log_entry("Entering credentials...")
 
         # Wait for username field
         username_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
@@ -107,90 +98,89 @@ def perform_oauth_login():
             totp_field = totp_wait.until(EC.presence_of_element_located((By.ID, "totpCode")))
             if totp_secret:
                 code = generate_totp_code(totp_secret)
-                log_entry("🔐 Entering 2FA code...")
+                log_entry("Entering 2FA code...")
                 totp_field.send_keys(code)
                 totp_submit = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
                 totp_submit.click()
             else:
-                log_entry("❌ 2FA required but no TOTP secret provided")
+                log_entry("2FA required but no TOTP secret provided")
                 return None
         except TimeoutException:
             pass  # No 2FA required
 
         # Handle consent screen
         try:
-            log_entry("📋 Looking for consent screen...")
+            log_entry("Looking for consent screen...")
             consent_wait = WebDriverWait(driver, 10)
             # Look for the Allow button by class name
             consent_button = consent_wait.until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "allowButton"))
             )
-            log_entry("✅ Clicking Allow on consent screen...")
+            log_entry("Clicking Allow on consent screen...")
 
             # Try clicking with JavaScript to ensure proper event handling
             try:
                 # Use JavaScript to click the button (ensures all event handlers fire)
                 driver.execute_script("arguments[0].click();", consent_button)
-                log_entry("🔘 Clicked Allow button via JavaScript")
+                log_entry("Clicked Allow button via JavaScript")
                 time.sleep(3)  # Give more time for the redirect
 
             except Exception as e:
-                log_entry(f"⚠️  JavaScript click failed: {str(e)}")
+                log_entry(f"JavaScript click failed: {str(e)}")
                 # Fallback to regular click
                 try:
                     consent_button.click()
                     time.sleep(3)
                 except Exception as e2:
-                    log_entry(f"⚠️  Regular click also failed: {str(e2)}")
+                    log_entry(f"Regular click also failed: {str(e2)}")
 
         except TimeoutException:
-            log_entry("ℹ️  No consent screen found")
+            log_entry("No consent screen found")
             pass  # No consent needed
 
         # Handle device selection page
         try:
-            log_entry("🔌 Looking for device selection page...")
+            log_entry("Looking for device selection page...")
             device_wait = WebDriverWait(driver, 10)
             # Look for the Connect button on device selection page
             connect_button = device_wait.until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "connect"))
             )
-            log_entry("✅ Found device selection page - clicking Connect...")
+            log_entry("Found device selection page - clicking Connect...")
 
             # The checkbox should already be checked by default, just click Connect
             driver.execute_script("arguments[0].click();", connect_button)
-            log_entry("🔗 Clicked Connect button")
+            log_entry("Clicked Connect button")
             time.sleep(2)
 
         except TimeoutException:
-            log_entry("ℹ️  No device selection page found")
+            log_entry("No device selection page found")
             pass  # No device selection needed
 
         # Wait for redirect
-        log_entry("🔗 Waiting for OAuth callback...")
+        log_entry("Waiting for OAuth callback...")
         wait.until(lambda d: "localhost:8080/callback" in d.current_url or "code=" in d.current_url)
 
         # Extract auth code
         current_url = driver.current_url
-        log_entry(f"📍 Final URL: {current_url}")
+        log_entry(f"Final URL: {current_url}")
 
         if "code=" in current_url:
             auth_code = current_url.split("code=")[1].split("&")[0]
-            log_entry(f"✅ Got authorization code: {auth_code}")
+            log_entry(f"Got authorization code: {auth_code}")
             return auth_code
         else:
-            log_entry("❌ No authorization code in redirect")
+            log_entry("No authorization code in redirect")
             return None
 
     except Exception as e:
-        log_entry(f"❌ OAuth flow failed: {str(e)}")
+        log_entry(f"OAuth flow failed: {str(e)}")
         return None
     finally:
         if driver:
             driver.quit()
 
 def exchange_code_for_token(auth_code):
-    """Exchange authorization code for access token"""
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
     api_secret = '7bdyEdjGAB5L9vzd'
 
@@ -211,17 +201,16 @@ def exchange_code_for_token(auth_code):
     if response.ok:
         token_data = response.json()
         access_token = token_data['access_token']
-        log_entry("✅ Successfully exchanged code for access token")
+        log_entry("Successfully exchanged code for access token")
         return access_token
     else:
-        log_entry(f"❌ Token exchange failed: {response.status_code}")
+        log_entry(f"Token exchange failed: {response.status_code}")
         return None
 
 def update_github_secret(token):
-    """Update GitHub secret with new token"""
     github_token = os.getenv('GITHUB_TOKEN')
     if not github_token:
-        log_entry("❌ No GITHUB_TOKEN available for updating secret")
+        log_entry("No GITHUB_TOKEN available for updating secret")
         return False
 
     result = subprocess.run(
@@ -232,49 +221,48 @@ def update_github_secret(token):
     )
 
     if result.returncode == 0:
-        log_entry("✅ Updated GitHub secret HONEYWELL_ACCESS_TOKEN")
+        log_entry("Updated GitHub secret HONEYWELL_ACCESS_TOKEN")
         return True
     else:
-        log_entry(f"❌ Failed to update GitHub secret: {result.stderr}")
+        log_entry(f"Failed to update GitHub secret: {result.stderr}")
         return False
 
 def main():
-    """Main automated token refresh flow"""
-    log_entry("🤖 Starting automated token refresh check...")
+    log_entry("Starting automated token refresh check...")
 
     # Check current token
     current_token = os.getenv('HONEYWELL_ACCESS_TOKEN')
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
 
     if current_token and test_token(current_token, api_key):
-        log_entry("✅ Current token is still valid - no refresh needed")
+        log_entry("Current token is still valid - no refresh needed")
         return 0
 
-    log_entry("⏰ Token expired or invalid - starting automated refresh...")
+    log_entry("Token expired or invalid - starting automated refresh...")
 
     # Perform OAuth flow
     auth_code = perform_oauth_login()
     if not auth_code:
-        log_entry("❌ Failed to get authorization code")
+        log_entry("Failed to get authorization code")
         return 1
 
     # Exchange for token
     new_token = exchange_code_for_token(auth_code)
     if not new_token:
-        log_entry("❌ Failed to get access token")
+        log_entry("Failed to get access token")
         return 1
 
     # Test new token
     if not test_token(new_token, api_key):
-        log_entry("❌ New token failed validation")
+        log_entry("New token failed validation")
         return 1
 
     # Update GitHub secret if running in GitHub Actions
     if os.getenv('GITHUB_ACTIONS'):
         if update_github_secret(new_token):
-            log_entry("🎉 Fully automated token refresh complete!")
+            log_entry("Fully automated token refresh complete!")
         else:
-            log_entry("⚠️  Token refreshed but GitHub secret update failed")
+            log_entry("Token refreshed but GitHub secret update failed")
     else:
         # Update local .env.dev
         with open('.env.dev', 'r') as f:
@@ -287,8 +275,8 @@ def main():
                 else:
                     f.write(line)
 
-        log_entry("✅ Updated local .env.dev with new token")
-        print(f"\n📋 To update GitHub secret, run:")
+        log_entry("Updated local .env.dev with new token")
+        print(f"\nTo update GitHub secret, run:")
         print(f"gh secret set HONEYWELL_ACCESS_TOKEN --body '{new_token}'")
 
     return 0
