@@ -1,8 +1,8 @@
-name: Auto Token Refresh
+name: Token Status Check
 
 on:
   schedule:
-    - cron: '45 1,3,5,7,9 * * *'  # 9:45pm, 11:45pm, 1:45am, 3:45am, 5:45am ET (UTC-4/5)
+    - cron: '45 1,3,5,7,9,11 * * *'  # 9:45pm, 11:45pm, 1:45am, 3:45am, 5:45am, 7:45am ET (matches thermostat schedule)
   workflow_dispatch:
 
 permissions:
@@ -21,27 +21,7 @@ jobs:
         python-version: '3.x'
 
     - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y wget unzip
-
-        # Install Chrome
-        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list'
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
-
-        # Install ChromeDriver
-        CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d '.' -f 1)
-        wget -q "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_${CHROME_VERSION}" -O chrome_version.txt
-        CHROMEDRIVER_VERSION=$(cat chrome_version.txt)
-        wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip"
-        unzip chromedriver-linux64.zip
-        sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
-        sudo chmod +x /usr/local/bin/chromedriver
-
-        # Install Python dependencies
-        pip install -r requirements.txt
+      run: pip install requests python-dotenv pytz
 
     - name: Create environment file
       env:
@@ -57,18 +37,53 @@ jobs:
         echo "HONEYWELL_TOTP_SECRET=$HONEYWELL_TOTP_SECRET" >> .env.dev
         echo "HONEYWELL_ACCESS_TOKEN=$CURRENT_TOKEN" >> .env.dev
 
-    - name: Run automated token refresh
+    - name: Check token and log status
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ACTIONS: true
-      run: python automated_token_refresh.py
+      run: |
+        python3 -c "
+        import os
+        import requests
+        from datetime import datetime
+        import pytz
+        from dotenv import load_dotenv
 
-    - name: Commit token refresh log
+        def log_entry(message):
+            et = pytz.timezone('US/Eastern')
+            timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
+            entry = f'{timestamp}: {message}'
+            with open('thermostat_log.txt', 'a') as f:
+                f.write(entry + '\n')
+            print(entry)
+
+        load_dotenv('.env.dev')
+
+        current_token = os.getenv('HONEYWELL_ACCESS_TOKEN')
+        api_key = os.getenv('RESIDEO_CONSUMER_KEY')
+
+        # Test current token
+        if current_token:
+            response = requests.get(
+                f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={api_key}&locationId=146016',
+                headers={'Authorization': f'Bearer {current_token}'}
+            )
+
+            if response.ok:
+                log_entry('✅ Token check: Current token is valid')
+            else:
+                log_entry('⚠️  Token check: Current token expired - manual refresh needed')
+                log_entry('📋 To refresh: python generate_token_batch.py')
+        else:
+            log_entry('❌ No token found in secrets')
+        "
+
+    - name: Commit token status log
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add thermostat_log.txt
-        git commit -m "Auto token refresh $(date '+%m/%d/%y %H:%M:%S')
+        git commit -m "Token status check $(date '+%m/%d/%y %H:%M:%S')
 
         🤖 Generated with [Claude Code](https://claude.ai/code)
 
