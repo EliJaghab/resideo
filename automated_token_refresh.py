@@ -13,6 +13,7 @@ from datetime import datetime
 import pytz
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
@@ -59,11 +60,15 @@ def perform_oauth_login():
 
     # Setup headless Chrome
     chrome_options = Options()
-    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--headless=new')
     chrome_options.add_argument('--no-sandbox')
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--disable-web-security')
+    chrome_options.add_argument('--disable-features=VizDisplayCompositor')
     chrome_options.add_argument('--window-size=1920,1080')
+    chrome_options.add_argument('--remote-debugging-port=9222')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
     driver = None
     try:
@@ -75,18 +80,59 @@ def perform_oauth_login():
         log_entry("🌐 Starting automated OAuth flow...")
         driver.get(auth_url)
 
-        # Enter username
+        # Enter username - try multiple possible selectors
         log_entry("👤 Entering credentials...")
-        username_field = wait.until(EC.presence_of_element_located((By.ID, "username")))
+        username_selectors = [
+            (By.ID, "username"),
+            (By.NAME, "username"),
+            (By.ID, "email"),
+            (By.NAME, "email"),
+            (By.CSS_SELECTOR, "input[type='email']"),
+            (By.CSS_SELECTOR, "input[type='text']")
+        ]
+
+        username_field = None
+        for selector_type, selector in username_selectors:
+            try:
+                username_field = wait.until(EC.presence_of_element_located((selector_type, selector)), timeout=5)
+                break
+            except:
+                continue
+
+        if not username_field:
+            log_entry("❌ Could not find username field")
+            return None
+
         username_field.send_keys(username)
 
-        # Enter password
-        password_field = driver.find_element(By.ID, "password")
+        # Enter password - try multiple selectors
+        password_selectors = [
+            (By.ID, "password"),
+            (By.NAME, "password"),
+            (By.CSS_SELECTOR, "input[type='password']")
+        ]
+
+        password_field = None
+        for selector_type, selector in password_selectors:
+            try:
+                password_field = driver.find_element(selector_type, selector)
+                break
+            except:
+                continue
+
+        if not password_field:
+            log_entry("❌ Could not find password field")
+            return None
+
         password_field.send_keys(password)
 
-        # Submit login
-        login_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        login_button.click()
+        # Submit login - try multiple methods
+        try:
+            login_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
+            login_button.click()
+        except:
+            # Try pressing Enter in password field
+            password_field.send_keys(Keys.RETURN)
 
         # Handle 2FA if needed
         try:
