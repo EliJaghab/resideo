@@ -14,3 +14,5 @@
 09/26/25 03:49:32 ET: ⚠️  Manual token refresh may be required
 09/26/25 05:49:43 ET: ❌ Client credentials flow not supported: 500
 09/26/25 05:49:43 ET: ⚠️  Manual token refresh may be required
+09/26/25 12:06:58 ET: ⚠️  Token check: Current token expired - manual refresh needed
+09/26/25 12:06:58 ET: 📋 To refresh: python generate_token_batch.py
