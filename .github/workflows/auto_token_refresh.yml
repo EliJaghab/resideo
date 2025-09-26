@@ -1,0 +1,129 @@
+name: Auto Token Refresh
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'  # Every 12 hours
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-token:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: pip install requests python-dotenv pytz
+
+    - name: Generate fresh token
+      env:
+        CONSUMER_KEY: ${{ secrets.RESIDEO_CONSUMER_KEY }}
+        CONSUMER_SECRET: ${{ secrets.RESIDEO_CONSUMER_SECRET }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        python3 -c "
+        import requests
+        import base64
+        import os
+        import json
+        import subprocess
+        from datetime import datetime
+        import pytz
+
+        def log_entry(message):
+            et = pytz.timezone('US/Eastern')
+            timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
+            entry = f'{timestamp}: {message}'
+            with open('thermostat_log.txt', 'a') as f:
+                f.write(entry + '\n')
+            print(entry)
+
+        API_KEY = os.environ['CONSUMER_KEY']
+        API_SECRET = os.environ.get('CONSUMER_SECRET', '7bdyEdjGAB5L9vzd')
+        CURRENT_TOKEN = os.environ.get('HONEYWELL_ACCESS_TOKEN', '')
+
+        # First check if current token is still valid
+        if CURRENT_TOKEN:
+            test_response = requests.get(
+                f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={API_KEY}&locationId=146016',
+                headers={'Authorization': f'Bearer {CURRENT_TOKEN}'}
+            )
+
+            if test_response.ok:
+                log_entry('🔄 Current token still fresh - no refresh needed')
+                exit(0)
+            else:
+                log_entry('⏰ Current token expired - attempting refresh')
+
+        # Try client credentials flow (if supported)
+        credentials = f'{API_KEY}:{API_SECRET}'
+        encoded_credentials = base64.b64encode(credentials.encode()).decode()
+
+        try:
+            response = requests.post('https://api.honeywellhome.com/oauth2/token',
+                headers={
+                    'Authorization': f'Basic {encoded_credentials}',
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                data={
+                    'grant_type': 'client_credentials'
+                })
+
+            if response.ok:
+                token_data = response.json()
+                access_token = token_data['access_token']
+
+                log_entry('✅ Generated new token via client credentials')
+
+                # Update GitHub secret (token value masked in logs)
+                result = subprocess.run([
+                    'gh', 'secret', 'set', 'HONEYWELL_ACCESS_TOKEN',
+                    '--body', access_token
+                ], capture_output=True, text=True, env=dict(os.environ, GH_TOKEN=os.environ['GITHUB_TOKEN']))
+
+                if result.returncode == 0:
+                    log_entry('✅ Updated GitHub secret - token rotated successfully')
+
+                    # Test the new token
+                    test_response = requests.get(
+                        f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={API_KEY}&locationId=146016',
+                        headers={'Authorization': f'Bearer {access_token}'}
+                    )
+
+                    if test_response.ok:
+                        log_entry('✅ New token tested and working - rotation complete')
+                    else:
+                        log_entry(f'⚠️  New token generated but test failed: {test_response.status_code}')
+                else:
+                    log_entry(f'❌ Failed to update GitHub secret: {result.stderr}')
+            else:
+                log_entry(f'❌ Client credentials flow not supported: {response.status_code}')
+                log_entry('⚠️  Manual token refresh may be required')
+
+        except Exception as e:
+            log_entry(f'❌ Token generation failed: {str(e)}')
+        "
+
+    - name: Log refresh attempt
+      run: |
+        echo "$(date '+%m/%d/%y %H:%M:%S') ET: Auto token refresh attempted" >> auto_refresh.log
+
+    - name: Commit refresh log
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add auto_refresh.log
+        git commit -m "Auto token refresh $(date '+%m/%d/%y %H:%M:%S')
+
+        🤖 Generated with [Claude Code](https://claude.ai/code)
+
+        Co-Authored-By: Claude <noreply@anthropic.com>" || exit 0
+        git push

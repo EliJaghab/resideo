@@ -1,0 +1,123 @@
+name: Token Status Check
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6am ET
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-tokens:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install dependencies
+      run: pip install requests python-dotenv pytz
+
+    - name: Create .env.dev
+      run: |
+        echo "RESIDEO_CONSUMER_KEY=${{ secrets.RESIDEO_CONSUMER_KEY }}" >> .env.dev
+        echo "HONEYWELL_ACCESS_TOKEN=${{ secrets.HONEYWELL_ACCESS_TOKEN }}" >> .env.dev
+
+    - name: Check token status
+      run: |
+        python3 -c "
+        import requests
+        import os
+        import json
+        from datetime import datetime, timedelta
+        import pytz
+        from dotenv import load_dotenv
+
+        load_dotenv('.env.dev')
+        API_KEY = os.getenv('RESIDEO_CONSUMER_KEY')
+        ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')
+
+        # Test current token
+        response = requests.get(
+            f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={API_KEY}&locationId=146016',
+            headers={'Authorization': f'Bearer {ACCESS_TOKEN}'}
+        )
+
+        et = pytz.timezone('US/Eastern')
+        timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
+
+        if response.ok:
+            print(f'{timestamp}: ✅ Primary token still valid')
+
+            # Check backup tokens if they exist
+            try:
+                with open('token_store.json', 'r') as f:
+                    tokens = json.load(f)
+
+                valid_count = 0
+                for token_data in tokens:
+                    token = token_data['token']
+                    test_response = requests.get(
+                        f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={API_KEY}&locationId=146016',
+                        headers={'Authorization': f'Bearer {token}'}
+                    )
+                    if test_response.ok:
+                        valid_count += 1
+
+                print(f'{timestamp}: 📊 {valid_count} backup tokens available')
+
+                if valid_count < 2:
+                    print(f'{timestamp}: ⚠️  LOW BACKUP TOKEN COUNT - Consider generating more')
+
+            except FileNotFoundError:
+                print(f'{timestamp}: ⚠️  No backup tokens found - Consider generating some')
+
+        else:
+            print(f'{timestamp}: ❌ PRIMARY TOKEN EXPIRED!')
+            print(f'{timestamp}: 🔗 Auth URL: https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={API_KEY}&redirect_uri=http://localhost:8080/callback')
+
+            # Check if backup tokens exist
+            try:
+                with open('token_store.json', 'r') as f:
+                    tokens = json.load(f)
+
+                valid_backup = None
+                for token_data in tokens:
+                    token = token_data['token']
+                    test_response = requests.get(
+                        f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={API_KEY}&locationId=146016',
+                        headers={'Authorization': f'Bearer {token}'}
+                    )
+                    if test_response.ok:
+                        valid_backup = token
+                        break
+
+                if valid_backup:
+                    print(f'{timestamp}: ✅ Found working backup token')
+                else:
+                    print(f'{timestamp}: 🚨 NO WORKING TOKENS AVAILABLE!')
+
+            except FileNotFoundError:
+                print(f'{timestamp}: 🚨 NO BACKUP TOKENS AND PRIMARY EXPIRED!')
+        "
+
+    - name: Log status to file
+      run: |
+        echo "$(date '+%m/%d/%y %H:%M:%S') ET: Token check completed" >> token_status.log
+
+    - name: Commit token status log
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add token_status.log
+        git commit -m "Token status check $(date '+%m/%d/%y %H:%M:%S')
+
+        🤖 Generated with [Claude Code](https://claude.ai/code)
+
+        Co-Authored-By: Claude <noreply@anthropic.com>" || exit 0
+        git push

@@ -1,5 +1,6 @@
 import requests
 import os
+import base64
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv('.env.dev')
 
 API_KEY = os.getenv('RESIDEO_CONSUMER_KEY')
+API_SECRET = os.getenv('RESIDEO_CONSUMER_SECRET', '7bdyEdjGAB5L9vzd')
 ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')
 LOCATION_ID = '146016'
 DEVICE_ID = 'LCC-00D02DB89E33'
@@ -20,6 +22,48 @@ def log_entry(message):
         f.write(entry + '\n')
     print(entry)
 
+def get_working_token():
+    """Get a working token, trying multiple stored tokens"""
+    import json
+
+    # Try current env token first
+    test_response = requests.get(
+        f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
+        headers={'Authorization': f'Bearer {ACCESS_TOKEN}'}
+    )
+
+    if test_response.ok:
+        return ACCESS_TOKEN
+
+    # Try stored tokens
+    try:
+        with open('token_store.json', 'r') as f:
+            tokens = json.load(f)
+
+        # Sort by creation time, newest first
+        sorted_tokens = sorted(tokens, key=lambda x: x['created'], reverse=True)
+
+        for token_data in sorted_tokens:
+            token = token_data['token']
+            test_response = requests.get(
+                f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
+                headers={'Authorization': f'Bearer {token}'}
+            )
+
+            if test_response.ok:
+                log_entry(f"Using backup token: {token[:20]}...")
+                return token
+
+    except FileNotFoundError:
+        pass
+
+    # No working tokens
+    log_entry("❌ ALL TOKENS EXPIRED - Generate new ones!")
+    log_entry("Run: python token_manager.py add AUTH_CODE")
+    log_entry(f"Auth URL: https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={API_KEY}&redirect_uri=http://localhost:8080/callback")
+    exit(1)
+
+ACCESS_TOKEN = get_working_token()
 headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
 
 # Get current status
