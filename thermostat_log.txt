@@ -12,3 +12,5 @@
 09/26/25 01:49:47 ET: ⚠️  Manual token refresh may be required
 09/26/25 03:49:32 ET: ❌ Client credentials flow not supported: 500
 09/26/25 03:49:32 ET: ⚠️  Manual token refresh may be required
+09/26/25 05:49:43 ET: ❌ Client credentials flow not supported: 500
+09/26/25 05:49:43 ET: ⚠️  Manual token refresh may be required
