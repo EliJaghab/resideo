@@ -6,3 +6,5 @@
 09/25/25 21:43:44 ET: 70°F, Cool, Set:68°F → OK
 09/25/25 21:54:01 ET: ❌ Client credentials flow not supported: 500
 09/25/25 21:54:01 ET: ⚠️  Manual token refresh may be required
+09/25/25 23:51:23 ET: ❌ Client credentials flow not supported: 500
+09/25/25 23:51:23 ET: ⚠️  Manual token refresh may be required
