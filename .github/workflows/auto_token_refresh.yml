@@ -20,8 +20,14 @@ jobs:
       with:
         python-version: '3.x'
 
+    - name: Setup Chrome and ChromeDriver
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable
+        install-chromedriver: true
+
     - name: Install dependencies
-      run: pip install requests python-dotenv pytz
+      run: pip install requests python-dotenv pytz selenium webdriver-manager
 
     - name: Create environment file
       env:
@@ -37,46 +43,19 @@ jobs:
         echo "HONEYWELL_TOTP_SECRET=$HONEYWELL_TOTP_SECRET" >> .env.dev
         echo "HONEYWELL_ACCESS_TOKEN=$CURRENT_TOKEN" >> .env.dev
 
-    - name: Check token and log status
+    - name: Run automated token refresh
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_ACTIONS: true
+        DISPLAY: :99
       run: |
-        python3 -c "
-        import os
-        import requests
-        from datetime import datetime
-        import pytz
-        from dotenv import load_dotenv
+        # Start virtual display for headless browser
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+        sleep 3
 
-        def log_entry(message):
-            et = pytz.timezone('US/Eastern')
-            timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
-            entry = f'{timestamp}: {message}'
-            with open('thermostat_log.txt', 'a') as f:
-                f.write(entry + '\n')
-            print(entry)
-
-        load_dotenv('.env.dev')
-
-        current_token = os.getenv('HONEYWELL_ACCESS_TOKEN')
-        api_key = os.getenv('RESIDEO_CONSUMER_KEY')
-
-        # Test current token
-        if current_token:
-            response = requests.get(
-                f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={api_key}&locationId=146016',
-                headers={'Authorization': f'Bearer {current_token}'}
-            )
-
-            if response.ok:
-                log_entry('✅ Token check: Current token is valid')
-            else:
-                log_entry('⚠️  Token check: Current token expired - manual refresh needed')
-                log_entry('📋 To refresh: python generate_token_batch.py')
-        else:
-            log_entry('❌ No token found in secrets')
-        "
+        # Run the automated token refresh
+        python automated_token_refresh.py
 
     - name: Commit token status log
       run: |

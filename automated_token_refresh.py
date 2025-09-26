@@ -17,7 +17,9 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
 from dotenv import load_dotenv
 
 load_dotenv('.env.dev')
@@ -72,7 +74,9 @@ def perform_oauth_login():
 
     driver = None
     try:
-        driver = webdriver.Chrome(options=chrome_options)
+        # Use webdriver-manager for automatic ChromeDriver management
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         wait = WebDriverWait(driver, 30)
 
         # Navigate to OAuth URL
