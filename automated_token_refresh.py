@@ -84,63 +84,27 @@ def perform_oauth_login():
         log_entry("🌐 Starting automated OAuth flow...")
         driver.get(auth_url)
 
-        # Enter username - try multiple possible selectors
+        # Enter username and password
         log_entry("👤 Entering credentials...")
-        username_selectors = [
-            (By.ID, "username"),
-            (By.NAME, "username"),
-            (By.ID, "email"),
-            (By.NAME, "email"),
-            (By.CSS_SELECTOR, "input[type='email']"),
-            (By.CSS_SELECTOR, "input[type='text']")
-        ]
 
-        username_field = None
-        for selector_type, selector in username_selectors:
-            try:
-                username_field = wait.until(EC.presence_of_element_located((selector_type, selector)), timeout=5)
-                break
-            except:
-                continue
-
-        if not username_field:
-            log_entry("❌ Could not find username field")
-            return None
-
+        # Wait for username field
+        username_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
+        username_field.clear()
         username_field.send_keys(username)
 
-        # Enter password - try multiple selectors
-        password_selectors = [
-            (By.ID, "password"),
-            (By.NAME, "password"),
-            (By.CSS_SELECTOR, "input[type='password']")
-        ]
-
-        password_field = None
-        for selector_type, selector in password_selectors:
-            try:
-                password_field = driver.find_element(selector_type, selector)
-                break
-            except:
-                continue
-
-        if not password_field:
-            log_entry("❌ Could not find password field")
-            return None
-
+        # Enter password
+        password_field = driver.find_element(By.NAME, "password")
+        password_field.clear()
         password_field.send_keys(password)
 
-        # Submit login - try multiple methods
-        try:
-            login_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit'], input[type='submit']")
-            login_button.click()
-        except:
-            # Try pressing Enter in password field
-            password_field.send_keys(Keys.RETURN)
+        # Submit form - find the form and submit it
+        form = driver.find_element(By.ID, "validate-form")
+        form.submit()
 
         # Handle 2FA if needed
         try:
-            totp_field = wait.until(EC.presence_of_element_located((By.ID, "totpCode")), timeout=5)
+            totp_wait = WebDriverWait(driver, 5)
+            totp_field = totp_wait.until(EC.presence_of_element_located((By.ID, "totpCode")))
             if totp_secret:
                 code = generate_totp_code(totp_secret)
                 log_entry("🔐 Entering 2FA code...")
@@ -155,13 +119,52 @@ def perform_oauth_login():
 
         # Handle consent screen
         try:
-            consent_button = wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Allow') or contains(text(), 'Authorize')]")),
-                timeout=5
+            log_entry("📋 Looking for consent screen...")
+            consent_wait = WebDriverWait(driver, 10)
+            # Look for the Allow button by class name
+            consent_button = consent_wait.until(
+                EC.element_to_be_clickable((By.CLASS_NAME, "allowButton"))
             )
-            consent_button.click()
+            log_entry("✅ Clicking Allow on consent screen...")
+
+            # Try clicking with JavaScript to ensure proper event handling
+            try:
+                # Use JavaScript to click the button (ensures all event handlers fire)
+                driver.execute_script("arguments[0].click();", consent_button)
+                log_entry("🔘 Clicked Allow button via JavaScript")
+                time.sleep(3)  # Give more time for the redirect
+
+            except Exception as e:
+                log_entry(f"⚠️  JavaScript click failed: {str(e)}")
+                # Fallback to regular click
+                try:
+                    consent_button.click()
+                    time.sleep(3)
+                except Exception as e2:
+                    log_entry(f"⚠️  Regular click also failed: {str(e2)}")
+
         except TimeoutException:
+            log_entry("ℹ️  No consent screen found")
             pass  # No consent needed
+
+        # Handle device selection page
+        try:
+            log_entry("🔌 Looking for device selection page...")
+            device_wait = WebDriverWait(driver, 10)
+            # Look for the Connect button on device selection page
+            connect_button = device_wait.until(
+                EC.element_to_be_clickable((By.CLASS_NAME, "connect"))
+            )
+            log_entry("✅ Found device selection page - clicking Connect...")
+
+            # The checkbox should already be checked by default, just click Connect
+            driver.execute_script("arguments[0].click();", connect_button)
+            log_entry("🔗 Clicked Connect button")
+            time.sleep(2)
+
+        except TimeoutException:
+            log_entry("ℹ️  No device selection page found")
+            pass  # No device selection needed
 
         # Wait for redirect
         log_entry("🔗 Waiting for OAuth callback...")
@@ -169,9 +172,11 @@ def perform_oauth_login():
 
         # Extract auth code
         current_url = driver.current_url
+        log_entry(f"📍 Final URL: {current_url}")
+
         if "code=" in current_url:
             auth_code = current_url.split("code=")[1].split("&")[0]
-            log_entry(f"✅ Got authorization code")
+            log_entry(f"✅ Got authorization code: {auth_code}")
             return auth_code
         else:
             log_entry("❌ No authorization code in redirect")
