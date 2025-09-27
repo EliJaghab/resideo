@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   actions: write
+  secrets: write
 
 jobs:
   refresh-token:
@@ -46,7 +47,7 @@ jobs:
 
     - name: Run automated token refresh
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GH_PAT }}
         GITHUB_ACTIONS: true
         DISPLAY: :99
       run: |
@@ -55,8 +56,31 @@ jobs:
         Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
         sleep 3
 
-        # Run the automated token refresh
-        python automated_token_refresh.py
+        # Run the automated token refresh and capture new token
+        python automated_token_refresh.py > token_output.log 2>&1
+        cat token_output.log
+
+        # Check if token refresh succeeded by looking for success message
+        if grep -q "Successfully exchanged code for access token" token_output.log; then
+          echo "Token refresh succeeded, checking for new token..."
+
+          # Extract the new token from .env.dev if it was updated
+          if [ -f .env.dev ]; then
+            NEW_TOKEN=$(grep "HONEYWELL_ACCESS_TOKEN=" .env.dev | cut -d'=' -f2)
+            if [ ! -z "$NEW_TOKEN" ]; then
+              echo "Updating GitHub secret with new token..."
+              gh secret set HONEYWELL_ACCESS_TOKEN --body "$NEW_TOKEN"
+              echo "GitHub secret updated successfully!"
+            else
+              echo "No new token found in .env.dev"
+            fi
+          else
+            echo "No .env.dev file found"
+          fi
+        else
+          echo "Token refresh failed"
+          exit 1
+        fi
 
     - name: Commit token status log
       run: |
