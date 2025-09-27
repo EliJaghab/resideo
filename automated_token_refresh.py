@@ -277,7 +277,7 @@ def main():
 
         log_entry("Updated local .env.dev with new token")
         print(f"\nTo update GitHub secret, run:")
-        print(f"gh secret set HONEYWELL_ACCESS_TOKEN --body '{new_token}'")
+        print("gh secret set HONEYWELL_ACCESS_TOKEN --body '<NEW_TOKEN>'")
 
     return 0
 
