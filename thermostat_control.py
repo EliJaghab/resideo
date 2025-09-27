@@ -6,7 +6,8 @@ from datetime import datetime
 import pytz
 from dotenv import load_dotenv
 
-load_dotenv('.env.dev')
+if os.path.exists('.env.dev'):
+    load_dotenv('.env.dev')
 
 API_KEY = os.getenv('RESIDEO_CONSUMER_KEY')
 ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')

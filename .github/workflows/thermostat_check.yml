@@ -43,25 +43,20 @@ jobs:
         if: steps.thermostat.outputs.success == 'false'
         run: pip install selenium webdriver-manager
 
-      - name: Create environment file for token refresh
+      - name: Setup environment for token refresh
         if: steps.thermostat.outputs.success == 'false'
-        env:
-          CONSUMER_KEY: ${{ secrets.RESIDEO_CONSUMER_KEY }}
-          HONEYWELL_USERNAME: ${{ secrets.HONEYWELL_USERNAME }}
-          HONEYWELL_PASSWORD: ${{ secrets.HONEYWELL_PASSWORD }}
-          HONEYWELL_TOTP_SECRET: ${{ secrets.HONEYWELL_TOTP_SECRET }}
-          CURRENT_TOKEN: ${{ secrets.HONEYWELL_ACCESS_TOKEN }}
-        run: |
-          echo "RESIDEO_CONSUMER_KEY=$CONSUMER_KEY" >> .env.dev
-          echo "HONEYWELL_USERNAME=$HONEYWELL_USERNAME" >> .env.dev
-          echo "HONEYWELL_PASSWORD=$HONEYWELL_PASSWORD" >> .env.dev
-          echo "HONEYWELL_TOTP_SECRET=$HONEYWELL_TOTP_SECRET" >> .env.dev
-          echo "HONEYWELL_ACCESS_TOKEN=$CURRENT_TOKEN" >> .env.dev
+        run: echo "Token refresh needed"
 
       - name: Run token refresh and retry thermostat
         if: steps.thermostat.outputs.success == 'false'
         env:
           DISPLAY: :99
+          RESIDEO_CONSUMER_KEY: ${{ secrets.RESIDEO_CONSUMER_KEY }}
+          RESIDEO_CONSUMER_SECRET: ${{ secrets.RESIDEO_CONSUMER_SECRET }}
+          HONEYWELL_USERNAME: ${{ secrets.HONEYWELL_USERNAME }}
+          HONEYWELL_PASSWORD: ${{ secrets.HONEYWELL_PASSWORD }}
+          HONEYWELL_TOTP_SECRET: ${{ secrets.HONEYWELL_TOTP_SECRET }}
+          HONEYWELL_ACCESS_TOKEN: ${{ secrets.HONEYWELL_ACCESS_TOKEN }}
         run: |
           # Start virtual display for headless browser
           export DISPLAY=:99
@@ -73,19 +68,10 @@ jobs:
           python automated_token_refresh.py > token_output.log 2>&1
           cat token_output.log
 
-          # Check if refresh succeeded and update GitHub secret
-          if grep -q "Successfully exchanged code for access token" token_output.log; then
-            if [ -f .env.dev ]; then
-              NEW_TOKEN=$(grep "HONEYWELL_ACCESS_TOKEN=" .env.dev | cut -d'=' -f2)
-              if [ ! -z "$NEW_TOKEN" ]; then
-                echo "Updating GitHub secret with new token..."
-                GH_TOKEN="${{ secrets.GH_PAT }}" gh secret set HONEYWELL_ACCESS_TOKEN --body "$NEW_TOKEN"
-                echo "GitHub secret updated, retrying thermostat control..."
-
-                # Retry thermostat control with new token
-                HONEYWELL_ACCESS_TOKEN="$NEW_TOKEN" python thermostat_control.py
-              fi
-            fi
+          # Check if refresh succeeded
+          if grep -q "Token refreshed" token_output.log; then
+            echo "Token refresh successful, retrying thermostat control..."
+            python thermostat_control.py
           else
             echo "Token refresh failed"
             exit 1

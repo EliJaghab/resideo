@@ -18,7 +18,8 @@ from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 from dotenv import load_dotenv
 
-load_dotenv('.env.dev')
+if os.path.exists('.env.dev'):
+    load_dotenv('.env.dev')
 
 def log_entry(message):
     message = str(message)
@@ -195,19 +196,21 @@ def main():
         return 1
 
     if os.getenv('GITHUB_TOKEN'):
-        update_github_secret(new_token)
+        if update_github_secret(new_token):
+            os.environ['HONEYWELL_ACCESS_TOKEN'] = new_token
 
-    try:
-        with open('.env.dev', 'r') as f:
-            lines = f.readlines()
-        with open('.env.dev', 'w') as f:
-            for line in lines:
-                if line.startswith('HONEYWELL_ACCESS_TOKEN='):
-                    f.write(f'HONEYWELL_ACCESS_TOKEN={new_token}\n')
-                else:
-                    f.write(line)
-    except:
-        pass
+    if os.path.exists('.env.dev'):
+        try:
+            with open('.env.dev', 'r') as f:
+                lines = f.readlines()
+            with open('.env.dev', 'w') as f:
+                for line in lines:
+                    if line.startswith('HONEYWELL_ACCESS_TOKEN='):
+                        f.write(f'HONEYWELL_ACCESS_TOKEN={new_token}\n')
+                    else:
+                        f.write(line)
+        except:
+            pass
 
     log_entry("Token refreshed")
     return 0
