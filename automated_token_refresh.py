@@ -257,14 +257,18 @@ def main():
         log_entry("New token failed validation")
         return 1
 
-    # Update GitHub secret if running in GitHub Actions
-    if os.getenv('GITHUB_ACTIONS'):
+    # Try to update GitHub secret first (works in both GHA and local with proper setup)
+    github_updated = False
+    if os.getenv('GITHUB_TOKEN'):
         if update_github_secret(new_token):
-            log_entry("Fully automated token refresh complete!")
+            log_entry("Updated GitHub secret HONEYWELL_ACCESS_TOKEN")
+            github_updated = True
         else:
-            log_entry("Token refreshed but GitHub secret update failed")
-    else:
-        # Update local .env.dev
+            log_entry("Failed to update GitHub secret")
+
+    # Update local .env.dev if it exists (local development)
+    local_updated = False
+    try:
         with open('.env.dev', 'r') as f:
             lines = f.readlines()
 
@@ -276,8 +280,17 @@ def main():
                     f.write(line)
 
         log_entry("Updated local .env.dev with new token")
+        local_updated = True
+    except FileNotFoundError:
+        log_entry("No local .env.dev file found")
+
+    if github_updated:
+        log_entry("Fully automated token refresh complete!")
+    elif local_updated:
         print(f"\nTo update GitHub secret, run:")
         print("gh secret set HONEYWELL_ACCESS_TOKEN --body '<NEW_TOKEN>'")
+    else:
+        log_entry("Token refreshed but no storage updated")
 
     return 0
 
