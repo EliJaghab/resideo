@@ -6,25 +6,102 @@ on:
     - cron: '10,35 2,3,4,5,6,7,8,9,10,11,12 * * *'  # :10 and :35 minutes past hours
   workflow_dispatch:
 
+permissions:
+  contents: write
+  actions: write
+  secrets: write
+
 jobs:
   check-thermostat:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: '3.x'
       - run: pip install -r requirements.txt
-      - name: Run thermostat check
+
+      - name: Try thermostat control
+        id: thermostat
         env:
           HONEYWELL_ACCESS_TOKEN: ${{ secrets.HONEYWELL_ACCESS_TOKEN }}
           RESIDEO_CONSUMER_KEY: ${{ secrets.RESIDEO_CONSUMER_KEY }}
-        run: python thermostat_control.py
-      - run: |
+        run: |
+          if python thermostat_control.py; then
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Setup Chrome and ChromeDriver (if token refresh needed)
+        if: steps.thermostat.outputs.success == 'false'
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      - name: Install additional dependencies for token refresh
+        if: steps.thermostat.outputs.success == 'false'
+        run: pip install selenium webdriver-manager
+
+      - name: Create environment file for token refresh
+        if: steps.thermostat.outputs.success == 'false'
+        env:
+          CONSUMER_KEY: ${{ secrets.RESIDEO_CONSUMER_KEY }}
+          HONEYWELL_USERNAME: ${{ secrets.HONEYWELL_USERNAME }}
+          HONEYWELL_PASSWORD: ${{ secrets.HONEYWELL_PASSWORD }}
+          HONEYWELL_TOTP_SECRET: ${{ secrets.HONEYWELL_TOTP_SECRET }}
+          CURRENT_TOKEN: ${{ secrets.HONEYWELL_ACCESS_TOKEN }}
+        run: |
+          echo "RESIDEO_CONSUMER_KEY=$CONSUMER_KEY" >> .env.dev
+          echo "HONEYWELL_USERNAME=$HONEYWELL_USERNAME" >> .env.dev
+          echo "HONEYWELL_PASSWORD=$HONEYWELL_PASSWORD" >> .env.dev
+          echo "HONEYWELL_TOTP_SECRET=$HONEYWELL_TOTP_SECRET" >> .env.dev
+          echo "HONEYWELL_ACCESS_TOKEN=$CURRENT_TOKEN" >> .env.dev
+
+      - name: Run token refresh and retry thermostat
+        if: steps.thermostat.outputs.success == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          DISPLAY: :99
+        run: |
+          # Start virtual display for headless browser
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          sleep 3
+
+          # Run automated token refresh
+          echo "Token expired, refreshing..."
+          python automated_token_refresh.py > token_output.log 2>&1
+          cat token_output.log
+
+          # Check if refresh succeeded and update GitHub secret
+          if grep -q "Successfully exchanged code for access token" token_output.log; then
+            if [ -f .env.dev ]; then
+              NEW_TOKEN=$(grep "HONEYWELL_ACCESS_TOKEN=" .env.dev | cut -d'=' -f2)
+              if [ ! -z "$NEW_TOKEN" ]; then
+                echo "Updating GitHub secret with new token..."
+                gh secret set HONEYWELL_ACCESS_TOKEN --body "$NEW_TOKEN"
+                echo "GitHub secret updated, retrying thermostat control..."
+
+                # Retry thermostat control with new token
+                HONEYWELL_ACCESS_TOKEN="$NEW_TOKEN" python thermostat_control.py
+              fi
+            fi
+          else
+            echo "Token refresh failed"
+            exit 1
+          fi
+
+      - name: Commit logs
+        run: |
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
           git add thermostat_log.txt
-          git diff --quiet && git diff --staged --quiet || git commit -m "Update thermostat log"
+          git diff --quiet && git diff --staged --quiet || git commit -m "Update thermostat log $(date '+%m/%d/%y %H:%M:%S')
+
+          🤖 Generated with [Claude Code](https://claude.ai/code)
+
+          Co-Authored-By: Claude <noreply@anthropic.com>"
           git push
