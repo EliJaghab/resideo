@@ -140,7 +140,7 @@ def perform_oauth_login():
 
 def exchange_code_for_token(auth_code):
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
-    api_secret = '7bdyEdjGAB5L9vzd'
+    api_secret = os.getenv('RESIDEO_CONSUMER_SECRET')
     credentials = f"{api_key}:{api_secret}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
