@@ -175,10 +175,14 @@ def update_github_secret(token):
     return result.returncode == 0
 
 def main():
+    test_mode = len(sys.argv) > 1 and sys.argv[1] == '--test'
+
     current_token = os.getenv('HONEYWELL_ACCESS_TOKEN')
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
 
     if current_token and test_token(current_token, api_key):
+        if test_mode:
+            log_entry("Current token is valid")
         return 0
 
     auth_code = perform_oauth_login()
@@ -212,7 +216,10 @@ def main():
         except:
             pass
 
-    log_entry("Token refreshed")
+    if test_mode:
+        log_entry("Token refresh test successful")
+    else:
+        log_entry("Token refreshed")
     return 0
 
 if __name__ == "__main__":
