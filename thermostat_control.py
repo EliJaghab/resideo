@@ -29,7 +29,6 @@ def log_entry(message):
     print(entry)
 
 def get_working_token():
-
     test_response = requests.get(
         f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
         headers={'Authorization': f'Bearer {ACCESS_TOKEN}'}
@@ -38,12 +37,10 @@ def get_working_token():
     if test_response.ok:
         return ACCESS_TOKEN
 
-    # Try stored tokens
     try:
         with open('token_store.json', 'r') as f:
             tokens = json.load(f)
 
-        # Sort by creation time, newest first
         sorted_tokens = sorted(tokens, key=lambda x: x['created'], reverse=True)
 
         for token_data in sorted_tokens:
@@ -54,26 +51,23 @@ def get_working_token():
             )
 
             if test_response.ok:
-                log_entry(f"Using backup token")
                 return token
 
     except FileNotFoundError:
         pass
 
-    log_entry("Token expired - refresh needed")
     exit(1)
 
 ACCESS_TOKEN = get_working_token()
 headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
 
-# Get current status
 status_response = requests.get(
     f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
     headers=headers
 )
 
 if not status_response.ok:
-    log_entry(f"ERROR - Cannot get thermostat status: {status_response.status_code}")
+    log_entry(f"ERROR: Cannot get thermostat status")
     exit(1)
 
 status = status_response.json()
@@ -84,7 +78,6 @@ heat_setpoint = status['changeableValues']['heatSetpoint']
 
 message = f"{temp}°F, {mode}, Set:{cool_setpoint}°F"
 
-# Set to 68°F AC if needed
 if mode != 'Cool' or cool_setpoint != TARGET_TEMP:
     payload = {
         'mode': 'Cool',
@@ -100,9 +93,9 @@ if mode != 'Cool' or cool_setpoint != TARGET_TEMP:
     )
 
     if result.ok:
-        message += f" → SET {TARGET_TEMP}°F AC"
+        message += f" → SET {TARGET_TEMP}°F"
     else:
-        message += f" → FAILED: {result.status_code} - {result.text[:100]}"
+        message += f" → ERROR"
 else:
     message += " → OK"
 
