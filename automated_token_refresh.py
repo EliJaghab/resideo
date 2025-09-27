@@ -5,6 +5,7 @@ import time
 import base64
 import requests
 import subprocess
+import re
 from datetime import datetime
 import pytz
 from selenium import webdriver
@@ -20,18 +21,12 @@ from dotenv import load_dotenv
 load_dotenv('.env.dev')
 
 def log_entry(message):
-    # Sanitize sensitive data
     message = str(message)
-    # Remove API keys
     if 'RESIDEO_CONSUMER_KEY' in os.environ:
         message = message.replace(os.environ['RESIDEO_CONSUMER_KEY'], '***')
-    # Remove tokens
     if 'HONEYWELL_ACCESS_TOKEN' in os.environ:
         message = message.replace(os.environ['HONEYWELL_ACCESS_TOKEN'], '***')
-    # Remove any authorization codes (8 char alphanumeric after code=)
-    import re
     message = re.sub(r'code=[A-Za-z0-9]{6,12}', 'code=***', message)
-    # Remove URLs with sensitive params
     message = re.sub(r'client_id=[^&\s]+', 'client_id=***', message)
     message = re.sub(r'Bearer [A-Za-z0-9]+', 'Bearer ***', message)
 

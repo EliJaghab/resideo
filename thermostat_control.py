@@ -1,6 +1,7 @@
 import requests
 import os
 import json
+import re
 from datetime import datetime
 import pytz
 from dotenv import load_dotenv
@@ -14,10 +15,8 @@ DEVICE_ID = 'LCC-00D02DB89E33'
 TARGET_TEMP = 68
 
 def log_entry(message):
-    # Sanitize sensitive data
     message = str(message)
-    import re
-    message = re.sub(r'[A-Za-z0-9]{28,}', '***', message)  # API keys/tokens
+    message = re.sub(r'[A-Za-z0-9]{28,}', '***', message)
     message = re.sub(r'code=[A-Za-z0-9]{6,12}', 'code=***', message)
     message = re.sub(r'client_id=[^&\s]+', 'client_id=***', message)
     message = re.sub(r'Bearer [A-Za-z0-9]+', 'Bearer ***', message)
@@ -31,7 +30,6 @@ def log_entry(message):
 
 def get_working_token():
 
-    # Try current env token first
     test_response = requests.get(
         f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
         headers={'Authorization': f'Bearer {ACCESS_TOKEN}'}
