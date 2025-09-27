@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
-  secrets: write
 
 jobs:
   check-thermostat:
