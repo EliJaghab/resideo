@@ -61,7 +61,6 @@ jobs:
       - name: Run token refresh and retry thermostat
         if: steps.thermostat.outputs.success == 'false'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
           DISPLAY: :99
         run: |
           # Start virtual display for headless browser
@@ -80,7 +79,7 @@ jobs:
               NEW_TOKEN=$(grep "HONEYWELL_ACCESS_TOKEN=" .env.dev | cut -d'=' -f2)
               if [ ! -z "$NEW_TOKEN" ]; then
                 echo "Updating GitHub secret with new token..."
-                gh secret set HONEYWELL_ACCESS_TOKEN --body "$NEW_TOKEN"
+                GH_TOKEN="${{ secrets.GH_PAT }}" gh secret set HONEYWELL_ACCESS_TOKEN --body "$NEW_TOKEN"
                 echo "GitHub secret updated, retrying thermostat control..."
 
                 # Retry thermostat control with new token
