@@ -14,6 +14,14 @@ DEVICE_ID = 'LCC-00D02DB89E33'
 TARGET_TEMP = 68
 
 def log_entry(message):
+    # Sanitize sensitive data
+    message = str(message)
+    import re
+    message = re.sub(r'[A-Za-z0-9]{28,}', '***', message)  # API keys/tokens
+    message = re.sub(r'code=[A-Za-z0-9]{6,12}', 'code=***', message)
+    message = re.sub(r'client_id=[^&\s]+', 'client_id=***', message)
+    message = re.sub(r'Bearer [A-Za-z0-9]+', 'Bearer ***', message)
+
     et = pytz.timezone('US/Eastern')
     timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
     entry = f"{timestamp}: {message}"
@@ -48,15 +56,13 @@ def get_working_token():
             )
 
             if test_response.ok:
-                log_entry(f"Using backup token: {token[:20]}...")
+                log_entry(f"Using backup token")
                 return token
 
     except FileNotFoundError:
         pass
 
-    log_entry("ALL TOKENS EXPIRED - Generate new ones!")
-    log_entry("Run: python automated_token_refresh.py")
-    log_entry(f"Auth URL: https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={API_KEY}&redirect_uri=http://localhost:8080/callback")
+    log_entry("Token expired - refresh needed")
     exit(1)
 
 ACCESS_TOKEN = get_working_token()

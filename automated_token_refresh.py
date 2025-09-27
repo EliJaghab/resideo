@@ -20,6 +20,21 @@ from dotenv import load_dotenv
 load_dotenv('.env.dev')
 
 def log_entry(message):
+    # Sanitize sensitive data
+    message = str(message)
+    # Remove API keys
+    if 'RESIDEO_CONSUMER_KEY' in os.environ:
+        message = message.replace(os.environ['RESIDEO_CONSUMER_KEY'], '***')
+    # Remove tokens
+    if 'HONEYWELL_ACCESS_TOKEN' in os.environ:
+        message = message.replace(os.environ['HONEYWELL_ACCESS_TOKEN'], '***')
+    # Remove any authorization codes (8 char alphanumeric after code=)
+    import re
+    message = re.sub(r'code=[A-Za-z0-9]{6,12}', 'code=***', message)
+    # Remove URLs with sensitive params
+    message = re.sub(r'client_id=[^&\s]+', 'client_id=***', message)
+    message = re.sub(r'Bearer [A-Za-z0-9]+', 'Bearer ***', message)
+
     et = pytz.timezone('US/Eastern')
     timestamp = datetime.now(et).strftime('%m/%d/%y %H:%M:%S ET')
     entry = f"{timestamp}: {message}"
@@ -72,11 +87,11 @@ def perform_oauth_login():
 
         # Navigate to OAuth URL
         auth_url = f"https://api.honeywellhome.com/oauth2/authorize?response_type=code&client_id={api_key}&redirect_uri=http://localhost:8080/callback"
-        log_entry("Starting automated OAuth flow...")
+        log_entry("Starting OAuth flow...")
         driver.get(auth_url)
 
         # Enter username and password
-        log_entry("Entering credentials...")
+        # Enter credentials silently
 
         # Wait for username field
         username_field = wait.until(EC.presence_of_element_located((By.NAME, "username")))
@@ -98,7 +113,7 @@ def perform_oauth_login():
             totp_field = totp_wait.until(EC.presence_of_element_located((By.ID, "totpCode")))
             if totp_secret:
                 code = generate_totp_code(totp_secret)
-                log_entry("Entering 2FA code...")
+                # Enter 2FA silently
                 totp_field.send_keys(code)
                 totp_submit = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
                 totp_submit.click()
@@ -110,19 +125,19 @@ def perform_oauth_login():
 
         # Handle consent screen
         try:
-            log_entry("Looking for consent screen...")
+            # Check consent
             consent_wait = WebDriverWait(driver, 10)
             # Look for the Allow button by class name
             consent_button = consent_wait.until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "allowButton"))
             )
-            log_entry("Clicking Allow on consent screen...")
+            # Click Allow
 
             # Try clicking with JavaScript to ensure proper event handling
             try:
                 # Use JavaScript to click the button (ensures all event handlers fire)
                 driver.execute_script("arguments[0].click();", consent_button)
-                log_entry("Clicked Allow button via JavaScript")
+                # Clicked via JS
                 time.sleep(3)  # Give more time for the redirect
 
             except Exception as e:
@@ -140,17 +155,17 @@ def perform_oauth_login():
 
         # Handle device selection page
         try:
-            log_entry("Looking for device selection page...")
+            # Check device selection
             device_wait = WebDriverWait(driver, 10)
             # Look for the Connect button on device selection page
             connect_button = device_wait.until(
                 EC.element_to_be_clickable((By.CLASS_NAME, "connect"))
             )
-            log_entry("Found device selection page - clicking Connect...")
+            # Click Connect
 
             # The checkbox should already be checked by default, just click Connect
             driver.execute_script("arguments[0].click();", connect_button)
-            log_entry("Clicked Connect button")
+            # Connected
             time.sleep(2)
 
         except TimeoutException:
@@ -158,16 +173,16 @@ def perform_oauth_login():
             pass  # No device selection needed
 
         # Wait for redirect
-        log_entry("Waiting for OAuth callback...")
+        # Wait for callback
         wait.until(lambda d: "localhost:8080/callback" in d.current_url or "code=" in d.current_url)
 
         # Extract auth code
         current_url = driver.current_url
-        log_entry(f"Final URL: {current_url}")
+        log_entry("Got OAuth callback")
 
         if "code=" in current_url:
             auth_code = current_url.split("code=")[1].split("&")[0]
-            log_entry(f"Got authorization code: {auth_code}")
+            log_entry(f"Got authorization code")
             return auth_code
         else:
             log_entry("No authorization code in redirect")
@@ -228,7 +243,7 @@ def update_github_secret(token):
         return False
 
 def main():
-    log_entry("Starting automated token refresh check...")
+    # Check token status
 
     # Check current token
     current_token = os.getenv('HONEYWELL_ACCESS_TOKEN')
@@ -238,7 +253,7 @@ def main():
         log_entry("Current token is still valid - no refresh needed")
         return 0
 
-    log_entry("Token expired or invalid - starting automated refresh...")
+    log_entry("Token expired - refreshing...")
 
     # Perform OAuth flow
     auth_code = perform_oauth_login()
