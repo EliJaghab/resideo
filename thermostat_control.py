@@ -30,6 +30,10 @@ def log_entry(message):
     print(entry)
 
 def get_working_token():
+    if not ACCESS_TOKEN:
+        log_entry("ERROR: No access token available")
+        exit(1)
+
     test_response = requests.get(
         f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
         headers={'Authorization': f'Bearer {ACCESS_TOKEN}'}
@@ -38,25 +42,7 @@ def get_working_token():
     if test_response.ok:
         return ACCESS_TOKEN
 
-    try:
-        with open('token_store.json', 'r') as f:
-            tokens = json.load(f)
-
-        sorted_tokens = sorted(tokens, key=lambda x: x['created'], reverse=True)
-
-        for token_data in sorted_tokens:
-            token = token_data['token']
-            test_response = requests.get(
-                f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
-                headers={'Authorization': f'Bearer {token}'}
-            )
-
-            if test_response.ok:
-                return token
-
-    except FileNotFoundError:
-        pass
-
+    log_entry("ERROR: Access token is invalid")
     exit(1)
 
 ACCESS_TOKEN = get_working_token()

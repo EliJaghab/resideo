@@ -202,6 +202,8 @@ def main():
     if os.getenv('GITHUB_TOKEN'):
         if update_github_secret(new_token):
             os.environ['HONEYWELL_ACCESS_TOKEN'] = new_token
+            # Output new token for shell to capture
+            print(f"NEW_TOKEN={new_token}")
 
     if os.path.exists('.env.dev'):
         try:

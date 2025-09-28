@@ -2,8 +2,8 @@ name: Thermostat Check
 
 on:
   schedule:
-    - cron: '45 1,2,3,4,5,6,7,8,9,10,11 * * *'  # 9:45pm-6:45am ET every 25 min (converted to UTC)
-    - cron: '10,35 2,3,4,5,6,7,8,9,10,11,12 * * *'  # :10 and :35 minutes past hours
+    - cron: '15,45 1,2,3,4,5,6,7,8,9 * * *'  # 9:45pm-6am ET every 30 min (EDT/UTC-4)
+    # Note: During EST (winter), use: '15,45 2,3,4,5,6,7,8,9,10 * * *'
   workflow_dispatch:
 
 permissions:
@@ -71,6 +71,12 @@ jobs:
           # Check if refresh succeeded
           if grep -q "Token refreshed" token_output.log; then
             echo "Token refresh successful, retrying thermostat control..."
+            # Extract new token if available
+            if grep -q "NEW_TOKEN=" token_output.log; then
+              NEW_TOKEN=$(grep "NEW_TOKEN=" token_output.log | cut -d'=' -f2)
+              export HONEYWELL_ACCESS_TOKEN="$NEW_TOKEN"
+              echo "Updated token for retry (first 10 chars): ${HONEYWELL_ACCESS_TOKEN:0:10}..."
+            fi
             python thermostat_control.py
           else
             echo "Token refresh failed"
