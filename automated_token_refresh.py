@@ -129,10 +129,13 @@ def perform_oauth_login():
         wait.until(lambda d: "localhost:8080/callback" in d.current_url or "code=" in d.current_url)
 
         current_url = driver.current_url
+        log_entry(f"OAuth redirect completed")
         if "code=" in current_url:
             auth_code = current_url.split("code=")[1].split("&")[0]
+            log_entry(f"Auth code extracted successfully")
             return auth_code
         else:
+            log_entry(f"ERROR: No auth code in callback URL")
             return None
 
     except Exception as e:
@@ -148,6 +151,7 @@ def exchange_code_for_token(auth_code):
     credentials = f"{api_key}:{api_secret}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
+    log_entry(f"Exchanging auth code for token...")
     response = requests.post('https://api.honeywellhome.com/oauth2/token',
         headers={
             'Authorization': f'Basic {encoded_credentials}',
@@ -161,7 +165,10 @@ def exchange_code_for_token(auth_code):
 
     if response.ok:
         token_data = response.json()
+        log_entry(f"Token exchange successful")
         return token_data['access_token']
+    else:
+        log_entry(f"Token exchange failed: {response.status_code} - {response.text}")
     return None
 
 def update_github_secret(token):
