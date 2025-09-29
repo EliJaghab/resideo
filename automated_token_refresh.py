@@ -90,15 +90,18 @@ def perform_oauth_login():
         try:
             totp_wait = WebDriverWait(driver, 5)
             totp_field = totp_wait.until(EC.presence_of_element_located((By.ID, "totpCode")))
+            log_entry("2FA required")
             if totp_secret:
                 code = generate_totp_code(totp_secret)
                 totp_field.send_keys(code)
                 totp_submit = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
                 totp_submit.click()
+                log_entry("2FA code submitted")
             else:
+                log_entry("ERROR: 2FA required but TOTP secret missing")
                 return None
         except TimeoutException:
-            pass
+            log_entry("No 2FA required, continuing...")
 
         try:
             consent_wait = WebDriverWait(driver, 10)
