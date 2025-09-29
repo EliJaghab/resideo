@@ -41,11 +41,17 @@ def generate_totp_code(secret):
     return totp.now()
 
 def test_token(token, api_key):
+    log_entry("Testing new token...")
     response = requests.get(
         f'https://api.honeywellhome.com/v2/devices/thermostats/LCC-00D02DB89E33?apikey={api_key}&locationId=146016',
         headers={'Authorization': f'Bearer {token}'}
     )
-    return response.ok
+    if response.ok:
+        log_entry("Token test successful")
+        return True
+    else:
+        log_entry(f"Token test failed: {response.status_code} - {response.text}")
+        return False
 
 def perform_oauth_login():
     api_key = os.getenv('RESIDEO_CONSUMER_KEY')
@@ -206,8 +212,10 @@ def main():
         return 1
 
     if not test_token(new_token, api_key):
-        log_entry("ERROR: Token refresh failed")
+        log_entry("ERROR: New token failed validation test")
         return 1
+    else:
+        log_entry("New token passed validation test")
 
     if os.getenv('GITHUB_TOKEN'):
         if update_github_secret(new_token):
