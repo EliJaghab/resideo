@@ -217,11 +217,17 @@ def main():
     else:
         log_entry("New token passed validation test")
 
+    # Always output new token for shell to capture
+    print(f"NEW_TOKEN={new_token}")
+
     if os.getenv('GITHUB_TOKEN'):
         if update_github_secret(new_token):
             os.environ['HONEYWELL_ACCESS_TOKEN'] = new_token
-            # Output new token for shell to capture
-            print(f"NEW_TOKEN={new_token}")
+            log_entry("GitHub secret updated successfully")
+        else:
+            log_entry("WARNING: Failed to update GitHub secret")
+    else:
+        log_entry("No GITHUB_TOKEN available for secret update")
 
     if os.path.exists('.env.dev'):
         try:
