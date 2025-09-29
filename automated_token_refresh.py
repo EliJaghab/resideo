@@ -217,12 +217,13 @@ def main():
     else:
         log_entry("New token passed validation test")
 
-    # Always output new token for shell to capture
-    print(f"NEW_TOKEN={new_token}")
+    # Token will be available in environment for subprocess
+
+    # Always update environment for current process
+    os.environ['HONEYWELL_ACCESS_TOKEN'] = new_token
 
     if os.getenv('GITHUB_TOKEN'):
         if update_github_secret(new_token):
-            os.environ['HONEYWELL_ACCESS_TOKEN'] = new_token
             log_entry("GitHub secret updated successfully")
         else:
             log_entry("WARNING: Failed to update GitHub secret")

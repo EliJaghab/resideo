@@ -63,25 +63,8 @@ jobs:
           Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
           sleep 3
 
-          # Run automated token refresh
-          echo "Token expired, refreshing..."
-          python automated_token_refresh.py > token_output.log 2>&1
-          cat token_output.log
-
-          # Check if refresh succeeded
-          if grep -q "Token refreshed" token_output.log; then
-            echo "Token refresh successful, retrying thermostat control..."
-            # Extract new token if available
-            if grep -q "NEW_TOKEN=" token_output.log; then
-              NEW_TOKEN=$(grep "NEW_TOKEN=" token_output.log | cut -d'=' -f2)
-              export HONEYWELL_ACCESS_TOKEN="$NEW_TOKEN"
-              echo "Updated token for retry (first 10 chars): ${HONEYWELL_ACCESS_TOKEN:0:10}..."
-            fi
-            python thermostat_control.py
-          else
-            echo "Token refresh failed"
-            exit 1
-          fi
+          # Run automated token refresh and retry thermostat control
+          python run_with_refresh.py
 
       - name: Commit logs
         run: |
