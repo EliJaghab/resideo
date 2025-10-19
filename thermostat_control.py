@@ -14,6 +14,7 @@ ACCESS_TOKEN = os.getenv('HONEYWELL_ACCESS_TOKEN')
 LOCATION_ID = '146016'
 DEVICE_ID = 'LCC-00D02DB89E33'
 TARGET_TEMP = 68
+TARGET_HEAT_TEMP = 67
 
 def log_entry(message):
     message = str(message)
@@ -63,13 +64,13 @@ mode = status['changeableValues']['mode']
 cool_setpoint = status['changeableValues']['coolSetpoint']
 heat_setpoint = status['changeableValues']['heatSetpoint']
 
-message = f"{temp}°F, {mode}, Set:{cool_setpoint}°F"
+message = f"{temp}°F, {mode}, Heat:{heat_setpoint}°F"
 
-if mode != 'Cool' or cool_setpoint != TARGET_TEMP:
+if mode != 'Heat' or heat_setpoint != TARGET_HEAT_TEMP:
     payload = {
-        'mode': 'Cool',
-        'coolSetpoint': TARGET_TEMP,
-        'heatSetpoint': heat_setpoint,
+        'mode': 'Heat',
+        'coolSetpoint': cool_setpoint,
+        'heatSetpoint': TARGET_HEAT_TEMP,
         'thermostatSetpointStatus': 'TemporaryHold'
     }
 
@@ -80,7 +81,7 @@ if mode != 'Cool' or cool_setpoint != TARGET_TEMP:
     )
 
     if result.ok:
-        message += f" → SET {TARGET_TEMP}°F"
+        message += f" → SET HEAT {TARGET_HEAT_TEMP}°F"
     else:
         message += f" → ERROR"
 else:

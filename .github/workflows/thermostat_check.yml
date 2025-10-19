@@ -1,10 +1,10 @@
 name: Thermostat Check
 
-on: []
-  # schedule:
-  #   - cron: '15,45 1,2,3,4,5,6,7,8 * * *'  # 9:45pm-5:30am ET every 30 min (EDT/UTC-4)
-  #   # Note: During EST (winter), use: '15,45 2,3,4,5,6,7,8,9 * * *'
-  # workflow_dispatch:
+on:
+  schedule:
+    - cron: '15,45 1,2,3,4,5,6,7,8 * * *'  # 9:45pm-5:30am ET every 30 min (EDT/UTC-4)
+    # Note: During EST (winter), use: '15,45 2,3,4,5,6,7,8,9 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
