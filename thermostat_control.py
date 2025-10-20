@@ -46,31 +46,45 @@ def get_working_token():
     log_entry("ERROR: Access token is invalid")
     exit(1)
 
-ACCESS_TOKEN = get_working_token()
-headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
+def get_thermostat_status():
+    """Get current thermostat status including temperature and settings."""
+    headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
 
-status_response = requests.get(
-    f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
-    headers=headers
-)
+    status_response = requests.get(
+        f'https://api.honeywellhome.com/v2/devices/thermostats/{DEVICE_ID}?apikey={API_KEY}&locationId={LOCATION_ID}',
+        headers=headers
+    )
 
-if not status_response.ok:
-    log_entry(f"ERROR: Cannot get thermostat status")
-    exit(1)
+    if not status_response.ok:
+        log_entry(f"ERROR: Cannot get thermostat status")
+        exit(1)
 
-status = status_response.json()
-temp = status['indoorTemperature']
-mode = status['changeableValues']['mode']
-cool_setpoint = status['changeableValues']['coolSetpoint']
-heat_setpoint = status['changeableValues']['heatSetpoint']
+    status = status_response.json()
+    return {
+        'temperature': status['indoorTemperature'],
+        'mode': status['changeableValues']['mode'],
+        'cool_setpoint': status['changeableValues']['coolSetpoint'],
+        'heat_setpoint': status['changeableValues']['heatSetpoint']
+    }
 
-message = f"{temp}°F, {mode}, Heat:{heat_setpoint}°F"
+def set_thermostat(desired_mode, desired_cool_setpoint, desired_heat_setpoint, current_status):
+    """Set thermostat mode and temperature setpoints if they differ from current values."""
+    current_mode = current_status['mode']
+    current_cool = current_status['cool_setpoint']
+    current_heat = current_status['heat_setpoint']
 
-if mode != 'Heat' or heat_setpoint != TARGET_HEAT_TEMP:
+    # Check if we need to make changes
+    if (current_mode == desired_mode and
+        current_cool == desired_cool_setpoint and
+        current_heat == desired_heat_setpoint):
+        return None  # No change needed
+
+    headers = {'Authorization': f'Bearer {ACCESS_TOKEN}'}
+
     payload = {
-        'mode': 'Heat',
-        'coolSetpoint': cool_setpoint,
-        'heatSetpoint': TARGET_HEAT_TEMP,
+        'mode': desired_mode,
+        'coolSetpoint': desired_cool_setpoint,
+        'heatSetpoint': desired_heat_setpoint,
         'thermostatSetpointStatus': 'TemporaryHold'
     }
 
@@ -80,11 +94,40 @@ if mode != 'Heat' or heat_setpoint != TARGET_HEAT_TEMP:
         json=payload
     )
 
-    if result.ok:
+    return result.ok
+
+ACCESS_TOKEN = get_working_token()
+
+# Get current status
+status = get_thermostat_status()
+temp = status['temperature']
+mode = status['mode']
+cool_setpoint = status['cool_setpoint']
+heat_setpoint = status['heat_setpoint']
+
+message = f"{temp}°F, {mode}, Cool:{cool_setpoint}°F, Heat:{heat_setpoint}°F"
+
+# Determine desired mode based on current temperature
+if temp > TARGET_TEMP:
+    # Too hot - use cooling
+    result = set_thermostat('Cool', TARGET_TEMP, heat_setpoint, status)
+    if result is None:
+        message += " → OK"
+    elif result:
+        message += f" → SET COOL {TARGET_TEMP}°F"
+    else:
+        message += f" → ERROR"
+elif temp < TARGET_HEAT_TEMP:
+    # Too cold - use heating
+    result = set_thermostat('Heat', cool_setpoint, TARGET_HEAT_TEMP, status)
+    if result is None:
+        message += " → OK"
+    elif result:
         message += f" → SET HEAT {TARGET_HEAT_TEMP}°F"
     else:
         message += f" → ERROR"
 else:
-    message += " → OK"
+    # Temperature is within acceptable range (67-68°F)
+    message += " → OK (within range)"
 
 log_entry(message)
