@@ -23240,3 +23240,21 @@
 12/31/25 03:23:22 ET: No GITHUB_TOKEN available for secret update
 12/31/25 03:23:22 ET: Token refreshed
 12/31/25 03:23:23 ET: 67°F, Heat, Cool:68°F, Heat:67°F → OK (within range)
+12/31/25 03:52:04 ET: ERROR: Access token is invalid
+12/31/25 03:52:17 ET: Testing new token...
+12/31/25 03:52:17 ET: Token test failed: 401 - {
+        "code": "Unauthorized",
+        "message": "Authorization has been denied for this request  "
+    
+}
+12/31/25 03:52:32 ET: No 2FA required, continuing...
+12/31/25 03:52:39 ET: OAuth redirect completed
+12/31/25 03:52:39 ET: Auth code extracted successfully
+12/31/25 03:52:40 ET: Exchanging auth code for token...
+12/31/25 03:52:40 ET: Token exchange successful
+12/31/25 03:52:40 ET: Testing new token...
+12/31/25 03:52:40 ET: Token test successful
+12/31/25 03:52:40 ET: New token passed validation test
+12/31/25 03:52:40 ET: No GITHUB_TOKEN available for secret update
+12/31/25 03:52:40 ET: Token refreshed
+12/31/25 03:52:40 ET: 67°F, Heat, Cool:68°F, Heat:67°F → OK (within range)
